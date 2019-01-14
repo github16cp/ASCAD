@@ -10,11 +10,12 @@ from keras.utils.data_utils import get_file
 from keras import backend as K
 from keras.applications.imagenet_utils import decode_predictions
 from keras.applications.imagenet_utils import preprocess_input
-from keras.applications.imagenet_utils import _obtain_input_shape
+from keras_applications.imagenet_utils import _obtain_input_shape
 from keras.optimizers import RMSprop
 from keras.callbacks import ModelCheckpoint
 from keras.utils import to_categorical
 from keras.models import load_model
+import matplotlib.pyplot as plt
 
 def check_file_exists(file_path):
 	if os.path.exists(file_path) == False:
@@ -25,18 +26,18 @@ def check_file_exists(file_path):
 #### MLP Best model (6 layers of 200 units)
 def mlp_best(node=200,layer_nb=6):
 	model = Sequential()
-	model.add(Dense(node, input_dim=700, activation='relu'))
+	model.add(Dense(node, input_dim=700, activation='relu')) # input(*,700) output(*,node)
 	for i in range(layer_nb-2):
 		model.add(Dense(node, activation='relu'))
 	model.add(Dense(256, activation='softmax'))
-	optimizer = RMSprop(lr=0.00001)
+	optimizer = RMSprop(lr=0.00001) # learning rate
 	model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 	return model
 
 ### CNN Best model
 def cnn_best(classes=256):
 	# From VGG16 design
-	input_shape = (700,1)
+	input_shape = (700,1) # 700 time steps with 1 feature per step
 	img_input = Input(shape=input_shape)
 	# Block 1
 	x = Conv1D(64, 11, activation='relu', padding='same', name='block1_conv1')(img_input)
@@ -62,7 +63,8 @@ def cnn_best(classes=256):
 	inputs = img_input
 	# Create model.
 	model = Model(inputs, x, name='cnn_best')
-	optimizer = RMSprop(lr=0.00001)
+	optimizer = RMSprop(lr=0.00001) 
+	# compile: configure training model
 	model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 	return model
 
@@ -88,6 +90,15 @@ def load_ascad(ascad_database_file, load_metadata=False):
 		sys.exit(-1)
 	# Load profiling traces
 	X_profiling = np.array(in_file['Profiling_traces/traces'], dtype=np.int8)
+	plt.title('profiling traces')
+	plt.xlabel('smaple')
+	plt.ylabel('amplitude')
+	plt.grid(True)
+	plt.plot(X_profiling)
+	name_str = "test.png"
+	plt.savefig(name_str,dpi=1000)
+	plt.show(block=False)
+	plt.figure()
 	# Load profiling labels
 	Y_profiling = np.array(in_file['Profiling_traces/labels'])
 	# Load attacking traces
@@ -121,7 +132,7 @@ def train_model(X_profiling, Y_profiling, model, save_file_name, epochs=150, bat
 	else:
 		print("Error: model input shape length %d is not expected ..." % len(input_layer_shape))
 		sys.exit(-1)
-	
+	# training model
 	history = model.fit(x=Reshaped_X_profiling, y=to_categorical(Y_profiling, num_classes=256), batch_size=batch_size, verbose = 1, epochs=epochs, callbacks=callbacks)
 	return history
 
@@ -129,7 +140,7 @@ def train_model(X_profiling, Y_profiling, model, save_file_name, epochs=150, bat
 # Our folders
 ascad_data_folder = "ASCAD_data/"
 ascad_databases_folder = ascad_data_folder + "ASCAD_databases/"
-ascad_trained_models_folder = ascad_data_folder + "ASCAD_trained_models/"
+ascad_trained_models_folder = ascad_data_folder + "ASCAD_cp_trained_models/"
 
 # Load the profiling traces in the ASCAD database with no desync
 (X_profiling, Y_profiling), (X_attack, Y_attack) = load_ascad(ascad_databases_folder + "ASCAD.h5")

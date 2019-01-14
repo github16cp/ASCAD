@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from keras.models import load_model
 
-
 AES_Sbox = np.array([
             0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
             0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0,
@@ -54,9 +53,9 @@ def rank(predictions, metadata, real_key, min_trace_idx, max_trace_idx, last_key
 	for p in range(0, max_trace_idx-min_trace_idx):
 		# Go back from the class to the key byte. '2' is the index of the byte (third byte) of interest.
 		plaintext = metadata[min_trace_idx + p]['plaintext'][2]
-		for i in range(0, 256):
+		for i in range(0, 256):# 0-255
 			# Our candidate key byte probability is the sum of the predictions logs
-			proba = predictions[p][AES_Sbox[plaintext ^ i]]
+			proba = predictions[p][AES_Sbox[plaintext ^ i]] # p-th traces Z(0-255)=AES_Sbox() corresponding to Z-class's value 0 or 1
 			if proba != 0:
 				key_bytes_proba[i] += np.log(proba)
 			else:
@@ -70,8 +69,9 @@ def rank(predictions, metadata, real_key, min_trace_idx, max_trace_idx, last_key
 				key_bytes_proba[i] += np.log(min_proba**2)
 	# Now we find where our real key candidate lies in the estimation.
 	# We do this by sorting our estimates and find the rank in the sorted array.
-	sorted_proba = np.array(list(map(lambda a : key_bytes_proba[a], key_bytes_proba.argsort()[::-1])))
-	real_key_rank = np.where(sorted_proba == key_bytes_proba[real_key])[0][0]
+	sorted_proba = np.array(list(map(lambda a : key_bytes_proba[a], key_bytes_proba.argsort()[::-1]))) # index in descending order
+	real_key_rank = np.where(sorted_proba == key_bytes_proba[real_key])[0][0] 
+	# extract value of rank  rank: (array([1], dtype=int64),) rank[0]: array([1], dtype=int64)  rank[0][0]: 1
 	return (real_key_rank, key_bytes_proba)
 
 def full_ranks(model, dataset, metadata, min_trace_idx, max_trace_idx, rank_step):
@@ -103,9 +103,9 @@ def full_ranks(model, dataset, metadata, min_trace_idx, max_trace_idx, rank_step
 	predictions = model.predict(input_data)
 
 	index = np.arange(min_trace_idx+rank_step, max_trace_idx, rank_step)
-	f_ranks = np.zeros((len(index), 2), dtype=np.uint32)
+	f_ranks = np.zeros((len(index), 2), dtype=np.uint32) # dimension：len(index)*2
 	key_bytes_proba = []
-	for t, i in zip(index, range(0, len(index))):
+	for t, i in zip(index, range(0, len(index))): # t：the max num of traces
 		real_key_rank, key_bytes_proba = rank(predictions[t-rank_step:t], metadata, real_key, t-rank_step, t, key_bytes_proba)
 		f_ranks[i] = [t - min_trace_idx, real_key_rank]
 	return f_ranks
@@ -135,6 +135,7 @@ def load_ascad(ascad_database_file, load_metadata=False):
 	else:
 		return (X_profiling, Y_profiling), (X_attack, Y_attack), (in_file['Profiling_traces/metadata'], in_file['Attack_traces/metadata'])
 
+k = 1
 # Check a saved model against one of the ASCAD databases Attack traces
 def check_model(model_file, ascad_database, num_traces=2000):
 	check_file_exists(model_file)
@@ -146,15 +147,19 @@ def check_model(model_file, ascad_database, num_traces=2000):
 	# We test the rank over traces of the Attack dataset, with a step of 10 traces
 	ranks = full_ranks(model, X_attack, Metadata_attack, 0, num_traces, 10)
 	# We plot the results
-	x = [ranks[i][0] for i in range(0, ranks.shape[0])]
-	y = [ranks[i][1] for i in range(0, ranks.shape[0])]
+	x = [ranks[i][0] for i in range(0, ranks.shape[0])] # rows 
+	y = [ranks[i][1] for i in range(0, ranks.shape[0])] # real_key_rank
 	plt.title('Performance of '+model_file+' against '+ascad_database)
 	plt.xlabel('number of traces')
 	plt.ylabel('rank')
 	plt.grid(True)
 	plt.plot(x, y)
+	global k
+	name_str = "test" + str(k) + ".png"
+	plt.savefig(name_str,dpi=1000)
 	plt.show(block=False)
 	plt.figure()
+	k = k + 1
 
 # Our folders
 ascad_data_folder = "ASCAD_data/"
@@ -172,11 +177,12 @@ to_check_all = [
 
 # No argument: check all the trained models
 if (len(sys.argv) == 1) or (len(sys.argv) == 2):
+	# print(len(sys.argv))
 	if len(sys.argv) == 2:
 		num_traces = int(sys.argv[1])
 	else:
-		num_traces = 2000
-
+		num_traces = 2000	
+    # python ASCAD_test_models.py(sys.argv[0]) 5000(sys.argv[1])
 	for (m, db) in to_check_all:
 		check_model(m, db, num_traces)
 
@@ -185,11 +191,13 @@ else:
 		num_traces = int(sys.argv[3])
 	else:
 		num_traces = 2000
-
+    # python ASCAD_test_models.py(sys.argv[0]) model_file(sys.argv[1]) ascad_database(sys.argv[2]) 5000(sys.argv[3]) 
 	check_model(sys.argv[1], sys.argv[2], num_traces)
+	
 
 try:
 	input("Press enter to exit ...")
 except SyntaxError:
 	pass
 
+        
